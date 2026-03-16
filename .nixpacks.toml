@@ -1,3 +1,6 @@
+[variables]
+NODE_ENV="production"
+
 [phases.setup]
 nixPkgs = ["nodejs_20", "pnpm"]
 
@@ -8,4 +11,4 @@ cmds = ["pnpm install --frozen-lockfile"]
 cmds = ["pnpm build"]
 
 [start]
-cmd = "node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js"
+cmd = "./start.sh"
