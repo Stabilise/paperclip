@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-curl -fsSL https://tailscale.com/install.sh | sh
-
 mkdir -p /paperclip/tailscale
 
 tailscaled \
@@ -16,4 +14,4 @@ tailscale up \
   --hostname=$TS_HOSTNAME \
   --accept-dns=false
 
-node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js
+exec node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js

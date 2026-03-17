@@ -1,8 +1,14 @@
 FROM node:lts-trixie-slim AS base
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl git \
   && rm -rf /var/lib/apt/lists/*
+
+# install tailscale at build time (as root)
+RUN curl -fsSL https://tailscale.com/install.sh | sh
+
 RUN corepack enable
+
 
 FROM base AS deps
 WORKDIR /app
@@ -35,6 +41,7 @@ COPY packages/plugins/examples/plugin-kitchen-sink-example/package.json packages
 
 RUN pnpm install --frozen-lockfile
 
+
 FROM base AS build
 WORKDIR /app
 
@@ -46,6 +53,7 @@ RUN pnpm --filter @paperclipai/plugin-sdk build
 RUN pnpm --filter @paperclipai/server build
 
 RUN test -f server/dist/index.js || (echo "ERROR: server build output missing" && exit 1)
+
 
 FROM base AS production
 WORKDIR /app
@@ -70,4 +78,5 @@ ENV NODE_ENV=production \
 EXPOSE 3100
 
 USER node
+
 CMD ["./start.sh"]
