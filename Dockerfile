@@ -77,6 +77,6 @@ ENV NODE_ENV=production \
 
 EXPOSE 3100
 
-USER node
+USER root
 
 CMD ["./start.sh"]

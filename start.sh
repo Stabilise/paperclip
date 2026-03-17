@@ -1,46 +1,42 @@
 #!/usr/bin/env bash
 set -e
 
-APP_DIR="/app"
+APP_CMD="node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js"
 TS_DIR="/paperclip/tailscale"
 TS_SOCKET="/tmp/tailscaled.sock"
 
-# --- 1. Fix volume permissions (Railway mounts as root) ---
-if [ "$(id -u)" = "0" ]; then
-  mkdir -p "$TS_DIR"
-  chown -R node:node /paperclip
-  exec su node -c "$APP_DIR/start.sh"
-fi
-
-# --- 2. Ensure tailscale state dir exists ---
+# --- always fix permissions first (we are root now) ---
 mkdir -p "$TS_DIR"
+chown -R node:node /paperclip
 
-# --- 3. Start tailscaled if not already running ---
-if ! pgrep -x tailscaled > /dev/null; then
-  tailscaled \
-    --state="$TS_DIR/tailscaled.state" \
-    --socket="$TS_SOCKET" \
-    --tun=userspace-networking &
-fi
+# --- drop to node user for everything else ---
+exec su node -c "
+  set -e
 
-# --- 4. Wait for tailscaled socket ---
-for i in {1..10}; do
-  if [ -S "$TS_SOCKET" ]; then
-    break
+  # start tailscaled if not running
+  if ! pgrep -x tailscaled > /dev/null; then
+    tailscaled \
+      --state=$TS_DIR/tailscaled.state \
+      --socket=$TS_SOCKET \
+      --tun=userspace-networking &
   fi
-  sleep 1
-done
 
-# --- 5. Check if already authenticated ---
-if tailscale --socket="$TS_SOCKET" status >/dev/null 2>&1; then
-  echo "Tailscale already authenticated"
-else
-  echo "Authenticating Tailscale..."
-  tailscale --socket="$TS_SOCKET" up \
-    --authkey="$TS_AUTHKEY" \
-    --hostname="${TS_HOSTNAME:-paperclip}" \
-    --accept-dns=false
-fi
+  # wait for socket
+  for i in {1..10}; do
+    [ -S $TS_SOCKET ] && break
+    sleep 1
+  done
 
-# --- 6. Start app ---
-exec node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js
+  # authenticate only if needed
+  if tailscale --socket=$TS_SOCKET status >/dev/null 2>&1; then
+    echo 'Tailscale already connected'
+  else
+    tailscale --socket=$TS_SOCKET up \
+      --authkey=$TS_AUTHKEY \
+      --hostname=${TS_HOSTNAME:-paperclip} \
+      --accept-dns=false
+  fi
+
+  # start app
+  exec $APP_CMD
+"
